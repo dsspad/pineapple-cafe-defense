@@ -190,12 +190,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 </div>
 
-<!-- 咖啡科普卡片 -->
+<!-- 波次提示/咖啡科普卡片 -->
 <div class="tip-card" id="tipCard">
 <div class="tip-icon">📚</div>
-<div class="tip-title" id="tipTitle">咖啡小知识</div>
+<div class="tip-title" id="tipTitle">第 <span id="tipWave">1</span> 波 - 敌人介绍</div>
 <div class="tip-content" id="tipContent">...</div>
-<button class="menu-btn btn-start" onclick="closeTip()">知道了</button>
+<button class="menu-btn btn-start" onclick="closeTip()">开始战斗</button>
 </div>
 
 <!-- Toast提示 -->
@@ -208,11 +208,11 @@ const ctx=canvas.getContext('2d');
 // 游戏状态
 let game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0}};
 
-// 防御塔配置
+// 防御塔配置（上面图标+下面咖啡）
 const towerTypes={
-espresso:{name:'浓缩咖啡',icon:'☕',cost:50,damage:20,range:100,fireRate:30,color:'#8B4513'},
-latte:{name:'拿铁塔',icon:'🥛',cost:100,damage:15,range:120,fireRate:20,color:'#D4AF37',slow:true},
-coldbrew:{name:'冷萃塔',icon:'🧊',cost:150,damage:40,range:150,fireRate:40,color:'#4682B4',aoe:true}
+espresso:{name:'浓缩咖啡',topIcon:'⚡',bottomIcon:'☕',cost:50,damage:20,range:100,fireRate:30,color:'#8B4513'},
+latte:{name:'拿铁塔',topIcon:'🥛',bottomIcon:'☕',cost:100,damage:15,range:120,fireRate:20,color:'#D4AF37',slow:true},
+coldbrew:{name:'冷萃塔',topIcon:'🧊',bottomIcon:'☕',cost:150,damage:40,range:150,fireRate:40,color:'#4682B4',aoe:true}
 };
 
 // 敌人类型
@@ -237,15 +237,22 @@ ctx.stroke();
 ctx.fillStyle='#228b22';ctx.beginPath();ctx.arc(0,250,25,0,Math.PI*2);ctx.fill();
 ctx.fillStyle='#8b4513';ctx.beginPath();ctx.arc(800,250,30,0,Math.PI*2);ctx.fill();
 ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText('🏠',785,258);
-// 绘制防御塔
+// 绘制防御塔（上面图标+下面咖啡）
 game.towers.forEach(tower=>{
-ctx.fillStyle=towerTypes[tower.type].color;
-ctx.beginPath();ctx.arc(tower.x,tower.y,20,0,Math.PI*2);ctx.fill();
-ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText(towerTypes[tower.type].icon,tower.x-10,tower.y+7);
+const type=towerTypes[tower.type];
+// 绘制底座
+ctx.fillStyle=type.color;
+ctx.beginPath();ctx.arc(tower.x,tower.y,22,0,Math.PI*2);ctx.fill();
+ctx.strokeStyle='#fff';ctx.lineWidth=2;
+ctx.beginPath();ctx.arc(tower.x,tower.y,22,0,Math.PI*2);ctx.stroke();
+// 绘制上面图标
+ctx.font='18px Arial';ctx.fillText(type.topIcon,tower.x-9,tower.y-2);
+// 绘制下面咖啡
+ctx.font='14px Arial';ctx.fillText(type.bottomIcon,tower.x-7,tower.y+12);
 // 绘制射程（选中时）
 if(game.selectedTower===tower.type){
 ctx.strokeStyle='rgba(212,175,55,0.3)';ctx.lineWidth=2;
-ctx.beginPath();ctx.arc(tower.x,tower.y,towerTypes[tower.type].range,0,Math.PI*2);ctx.stroke()
+ctx.beginPath();ctx.arc(tower.x,tower.y,type.range,0,Math.PI*2);ctx.stroke()
 }
 });
 // 绘制敌人
@@ -354,7 +361,7 @@ if(e!==p.target)e.speedUpTimer=120
 })
 }
 game.beans+=p.target.type.reward;game.kills++;
-showTip(p.target.type.tip);
+// 不再显示咖啡小知识
 const idx=game.enemies.indexOf(p.target);
 if(idx>-1)game.enemies.splice(idx,1)
 }
@@ -411,11 +418,13 @@ document.getElementById('waveNum').textContent=game.wave;
 document.getElementById('waveEnemy').textContent=enemyType.emoji;
 document.getElementById('waveText').textContent=enemyType.name+'来袭！';
 document.getElementById('waveAlert').style.display='block';
+// 波次开始时显示咖啡小知识
+showTip(enemyType.tip);
 setTimeout(()=>document.getElementById('waveAlert').style.display='none',2000);
 // 生成敌人
 for(let i=0;i<count;i++){
 setTimeout(()=>{
-game.enemies.push({x:0,y:250,hp:enemyType.hp*(1+game.wave*0.1),maxHp:enemyType.hp*(1+game.wave*0.1),type:enemyType,pathIndex:0,slowTimer:0,currentSpeed:enemyType.speed})
+game.enemies.push({x:0,y:250,hp:enemyType.hp*(1+game.wave*0.1),maxHp:enemyType.hp*(1+game.wave*0.1),type:enemyType,pathIndex:0,slowTimer:0,currentSpeed:enemyType.speed,stunTimer:0,speedUpTimer:0})
 },i*800)
 }
 document.getElementById('enemiesLeft').textContent=count;updateUI()
@@ -569,9 +578,9 @@ document.getElementById('hero-pineapple').classList.remove('cooldown')
 updateUI()
 }
 
-// 显示科普
+// 显示波次提示（每波开始时显示）
 function showTip(text){
-if(Math.random()>0.3)return; // 30%概率显示
+document.getElementById('tipWave').textContent=game.wave;
 document.getElementById('tipContent').textContent=text;
 document.getElementById('tipCard').classList.add('active');
 game.active=false

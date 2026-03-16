@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>☕ 菠萝咖啡馆保卫战</title>
+<style>
+:root{--caramel:#8B4513;--cream:#F5E6D3;--dark-brown:#2D1B14;--gold:#D4AF37;--accent:#C73E54}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,var(--dark-brown),#4a2c1a,var(--dark-brown));min-height:100vh;color:#fff;overflow-x:hidden}
+.page{display:none;min-height:100vh;padding:15px}
+.page.active{display:block}
+
+/* 首页 */
+.home{text-align:center;padding-top:30px}
+.logo{font-size:80px;margin-bottom:10px;animation:bounce 2s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.title{font-size:28px;color:var(--gold);margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,.5)}
+.subtitle{font-size:14px;opacity:.8;margin-bottom:30px}
+.menu-btn{display:block;width:250px;margin:15px auto;padding:18px;border:none;border-radius:30px;font-size:18px;cursor:pointer;transition:all .3s;font-weight:600}
+.menu-btn:hover{transform:scale(1.05)}
+.btn-start{background:linear-gradient(135deg,#228b22,#32cd32);color:#fff;box-shadow:0 4px 15px rgba(50,205,50,.4)}
+.btn-hero{background:linear-gradient(135deg,var(--caramel),#A0522D);color:#fff;box-shadow:0 4px 15px rgba(139,69,19,.4)}
+.btn-upgrade{background:linear-gradient(135deg,#4682b4,#5f9ea0);color:#fff;box-shadow:0 4px 15px rgba(70,130,180,.4)}
+
+/* 游戏页面 */
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(0,0,0,.3);border-radius:15px;margin-bottom:10px;flex-wrap:wrap;gap:10px}
+.stat-item{display:flex;align-items:center;gap:5px;font-size:14px}
+.stat-icon{font-size:20px}
+.stat-value{color:var(--gold);font-weight:bold;font-size:18px}
+#gameCanvas{border:3px solid var(--caramel);border-radius:10px;background:linear-gradient(135deg,#f5e6d3,#e8d9c5);display:block;margin:0 auto;max-width:100%}
+.tower-panel{display:flex;gap:10px;justify-content:center;margin-top:15px;flex-wrap:wrap}
+.tower-btn{width:70px;height:70px;border:2px solid var(--caramel);border-radius:15px;background:linear-gradient(135deg,var(--cream),#e8d9c5);cursor:pointer;transition:all .3s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:var(--dark-brown)}
+.tower-btn:hover{transform:translateY(-5px);box-shadow:0 5px 15px rgba(0,0,0,.3)}
+.tower-btn.selected{border-color:var(--gold);box-shadow:0 0 15px var(--gold)}
+.tower-icon{font-size:30px;margin-bottom:2px}
+.tower-cost{font-size:11px;color:var(--caramel);font-weight:bold}
+
+/* 英雄技能 */
+.hero-panel{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:15px;z-index:100}
+.hero-btn{width:80px;height:80px;border:3px solid var(--gold);border-radius:50%;background:linear-gradient(135deg,var(--cream),#e8d9c5);cursor:pointer;position:relative;box-shadow:0 5px 20px rgba(0,0,0,.3);transition:all .3s}
+.hero-btn:hover{transform:scale(1.1)}
+.hero-btn.cooldown{opacity:.5;cursor:not-allowed}
+.hero-avatar{font-size:40px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.hero-name{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:12px;white-space:nowrap;color:var(--gold)}
+.cooldown-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold}
+
+/* 波次提示 */
+.wave-alert{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,var(--caramel),var(--dark-brown));padding:30px 50px;border-radius:20px;border:3px solid var(--gold);text-align:center;z-index:200;animation:fadeInOut 2s ease}
+@keyframes fadeInOut{0%{opacity:0;transform:translate(-50%,-50%)scale(.8)}20%{opacity:1;transform:translate(-50%,-50%)scale(1)}80%{opacity:1;transform:translate(-50%,-50%)scale(1)}100%{opacity:0;transform:translate(-50%,-50%)scale(.8)}}
+.wave-title{font-size:24px;color:var(--gold);margin-bottom:10px}
+.wave-enemy{font-size:40px}
+
+/* 游戏结束 */
+.game-over{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:300}
+.game-over.active{display:flex}
+.game-over-content{background:linear-gradient(135deg,var(--cream),#e8d9c5);padding:40px;border-radius:20px;text-align:center;color:var(--dark-brown);border:3px solid var(--gold);max-width:350px}
+.game-over-title{font-size:28px;margin-bottom:20px;color:var(--caramel)}
+.game-over-stats{margin:20px 0;font-size:16px;line-height:2}
+
+/* 升级页面 */
+.upgrade-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;max-width:600px;margin:20px auto}
+.upgrade-card{background:linear-gradient(135deg,rgba(139,69,19,.3),rgba(45,27,20,.5));border:2px solid var(--caramel);border-radius:15px;padding:20px;text-align:center;cursor:pointer;transition:all .3s}
+.upgrade-card:hover{transform:translateY(-5px);border-color:var(--gold);box-shadow:0 10px 20px rgba(0,0,0,.3)}
+.upgrade-card.maxed{opacity:.5;cursor:not-allowed;border-color:#666}
+.upgrade-icon{font-size:40px;margin-bottom:10px}
+.upgrade-name{font-size:16px;font-weight:bold;margin-bottom:5px}
+.upgrade-level{color:var(--gold);font-size:14px;margin-bottom:10px}
+.upgrade-cost{background:var(--caramel);color:#fff;padding:8px 15px;border-radius:20px;font-size:14px;display:inline-block}
+
+/* 科普卡片 */
+.tip-card{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,var(--cream),#e8d9c5);padding:30px;border-radius:20px;border:3px solid var(--gold);max-width:350px;z-index:400;color:var(--dark-brown);text-align:center;display:none}
+.tip-card.active{display:block}
+.tip-icon{font-size:60px;margin-bottom:15px}
+.tip-title{font-size:20px;font-weight:bold;color:var(--caramel);margin-bottom:10px}
+.tip-content{font-size:14px;line-height:1.6;margin-bottom:20px}
+
+/* Toast提示 */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--caramel),var(--dark-brown));color:var(--cream);padding:12px 25px;border-radius:25px;font-size:14px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid var(--gold)}
+.toast.show{opacity:1}
+
+/* 移动端优化 */
+@media(max-width:768px){
+.title{font-size:22px}
+.subtitle{font-size:12px}
+.menu-btn{width:200px;padding:15px;font-size:16px}
+#gameCanvas{max-height:50vh}
+.tower-btn{width:60px;height:60px}
+.tower-icon{font-size:24px}
+.hero-btn{width:65px;height:65px}
+.hero-avatar{font-size:32px}
+.hero-name{font-size:10px;bottom:-15px}
+.game-header{padding:8px;font-size:12px}
+.stat-value{font-size:14px}
+.wave-alert{padding:20px 30px}
+.wave-title{font-size:18px}
+.wave-enemy{font-size:30px}
+}
+</style>
+</head>
+<body>
+
+<!-- 首页 -->
+<div class="page active" id="homePage">
+<div class="home">
+<div class="logo">☕</div>
+<div class="title">菠萝咖啡馆保卫战</div>
+<div class="subtitle">守护咖啡馆，击退负面怪兽！</div>
+<button class="menu-btn btn-start" onclick="startGame()">🎮 开始游戏</button>
+<button class="menu-btn btn-hero" onclick="showHeroes()">🦐 英雄技能</button>
+<button class="menu-btn btn-upgrade" onclick="showUpgrades()">⬆️ 升级防御塔</button>
+</div>
+</div>
+
+<!-- 游戏页面 -->
+<div class="page" id="gamePage">
+<div class="game-header">
+<div class="stat-item"><span class="stat-icon">☕</span>咖啡豆: <span class="stat-value" id="coffeeBeans">100</span></div>
+<div class="stat-item"><span class="stat-icon">❤️</span>生命值: <span class="stat-value" id="lives">20</span></div>
+<div class="stat-item"><span class="stat-icon">🌊</span>波次: <span class="stat-value" id="wave">1</span>/10</div>
+<div class="stat-item"><span class="stat-icon">👹</span>敌人: <span class="stat-value" id="enemiesLeft">0</span></div>
+</div>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div class="tower-panel">
+<div class="tower-btn selected" onclick="selectTower('espresso')" id="btn-espresso">
+<div class="tower-icon">☕</div>
+<div>浓缩咖啡</div>
+<div class="tower-cost">50豆</div>
+</div>
+<div class="tower-btn" onclick="selectTower('latte')" id="btn-latte">
+<div class="tower-icon">🥛</div>
+<div>拿铁塔</div>
+<div class="tower-cost">100豆</div>
+</div>
+<div class="tower-btn" onclick="selectTower('coldbrew')" id="btn-coldbrew">
+<div class="tower-icon">🧊</div>
+<div>冷萃塔</div>
+<div class="tower-cost">150豆</div>
+</div>
+</div>
+<div class="hero-panel">
+<div class="hero-btn" id="hero-pineapple" onclick="useHeroSkill('pineapple')">
+<div class="hero-avatar">🍍</div>
+<div class="hero-name">菠萝虾</div>
+</div>
+</div>
+<button class="menu-btn btn-start" onclick="goHome()" style="margin-top:20px">🏠 返回首页</button>
+</div>
+
+<!-- 波次提示 -->
+<div class="wave-alert" id="waveAlert" style="display:none">
+<div class="wave-title">第 <span id="waveNum">1</span> 波</div>
+<div class="wave-enemy" id="waveEnemy">😴</div>
+<div id="waveText">困意小怪来袭！</div>
+</div>
+
+<!-- 游戏结束 -->
+<div class="game-over" id="gameOver">
+<div class="game-over-content">
+<div class="game-over-title" id="gameOverTitle">游戏结束</div>
+<div class="game-over-stats">
+<div>存活波次: <span id="finalWave">0</span></div>
+<div>击败敌人: <span id="finalKills">0</span></div>
+<div>获得咖啡豆: <span id="finalBeans">0</span></div>
+</div>
+<button class="menu-btn btn-start" onclick="restartGame()">🔄 再玩一次</button>
+<button class="menu-btn btn-hero" onclick="goHome()">🏠 返回首页</button>
+</div>
+</div>
+
+<!-- 咖啡科普卡片 -->
+<div class="tip-card" id="tipCard">
+<div class="tip-icon">📚</div>
+<div class="tip-title" id="tipTitle">咖啡小知识</div>
+<div class="tip-content" id="tipContent">...</div>
+<button class="menu-btn btn-start" onclick="closeTip()">知道了</button>
+</div>
+
+<!-- Toast提示 -->
+<div class="toast" id="toast"></div>
+
+<script>
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+
+// 游戏状态
+let game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false}};
+
+// 防御塔配置
+const towerTypes={
+espresso:{name:'浓缩咖啡',icon:'☕',cost:50,damage:20,range:100,fireRate:30,color:'#8B4513'},
+latte:{name:'拿铁塔',icon:'🥛',cost:100,damage:15,range:120,fireRate:20,color:'#D4AF37',slow:true},
+coldbrew:{name:'冷萃塔',icon:'🧊',cost:150,damage:40,range:150,fireRate:40,color:'#4682B4',aoe:true}
+};
+
+// 敌人类型
+const enemyTypes=[
+{emoji:'😴',name:'困意小怪',hp:30,speed:1,reward:10,tip:'咖啡因可以驱散困意，一杯浓缩咖啡让你精神焕发！'},
+{emoji:'🐛',name:'苦味虫子',hp:50,speed:1.2,reward:15,tip:'咖啡的苦味来自绿原酸，适度烘焙能平衡酸甜苦。'},
+{emoji:'🦥',name:'拖延症懒虫',hp:80,speed:0.8,reward:20,tip:'手冲咖啡需要耐心等待，但每一滴都值得！'},
+{emoji:'☁️',name:'社恐乌云',hp:100,speed:1.5,reward:25,tip:'咖啡馆是社交的好场所，一杯咖啡打破尴尬。'}
+];
+
+// 路径点
+const path=[{x:0,y:250},{x:150,y:250},{x:150,y:100},{x:350,y:100},{x:350,y:400},{x:600,y:400},{x:600,y:250},{x:800,y:250}];
+
+// 绘制游戏
+function draw(){
+ctx.fillStyle='#f5e6d3';ctx.fillRect(0,0,canvas.width,canvas.height);
+// 绘制路径
+ctx.strokeStyle='#d4a460';ctx.lineWidth=40;ctx.lineCap='round';ctx.lineJoin='round';
+ctx.beginPath();ctx.moveTo(path[0].x,path[0].y);
+for(let i=1;i<path.length;i++)ctx.lineTo(path[i].x,path[i].y);
+ctx.stroke();
+// 绘制起点和终点
+ctx.fillStyle='#228b22';ctx.beginPath();ctx.arc(0,250,25,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#8b4513';ctx.beginPath();ctx.arc(800,250,30,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText('🏠',785,258);
+// 绘制防御塔
+game.towers.forEach(tower=>{
+ctx.fillStyle=towerTypes[tower.type].color;
+ctx.beginPath();ctx.arc(tower.x,tower.y,20,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText(towerTypes[tower.type].icon,tower.x-10,tower.y+7);
+// 绘制射程（选中时）
+if(game.selectedTower===tower.type){
+ctx.strokeStyle='rgba(212,175,55,0.3)';ctx.lineWidth=2;
+ctx.beginPath();ctx.arc(tower.x,tower.y,towerTypes[tower.type].range,0,Math.PI*2);ctx.stroke()
+}
+});
+// 绘制敌人
+game.enemies.forEach(enemy=>{
+ctx.font='30px Arial';ctx.fillText(enemy.type.emoji,enemy.x-15,enemy.y+10);
+// 血条
+const barWidth=30;const hpPercent=enemy.hp/enemy.maxHp;
+ctx.fillStyle='#333';ctx.fillRect(enemy.x-barWidth/2,enemy.y-25,barWidth,5);
+ctx.fillStyle=hpPercent>0.5?'#32cd32':'#e94560';ctx.fillRect(enemy.x-barWidth/2,enemy.y-25,barWidth*hpPercent,5)
+});
+// 绘制子弹
+game.projectiles.forEach(p=>{
+ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill()
+});
+// 绘制英雄
+if(game.hero){
+ctx.font='40px Arial';ctx.fillText('🍍',game.hero.x-20,game.hero.y+10);
+// 英雄血条
+ctx.fillStyle='#333';ctx.fillRect(game.hero.x-25,game.hero.y-30,50,6);
+ctx.fillStyle='#32cd32';ctx.fillRect(game.hero.x-25,game.hero.y-30,50,6);
+// 选中效果
+if(game.hero.moving){
+ctx.strokeStyle='rgba(212,175,55,0.5)';ctx.lineWidth=2;
+ctx.beginPath();ctx.arc(game.hero.x,game.hero.y,30,0,Math.PI*2);ctx.stroke()
+}
+}
+}
+
+// 更新游戏
+function update(){
+if(!game.active)return;
+// 更新敌人
+game.enemies.forEach((enemy,i)=>{
+// 沿路径移动
+const target=path[enemy.pathIndex+1];
+if(target){
+const dx=target.x-enemy.x;const dy=target.y-enemy.y;
+const dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<5)enemy.pathIndex++;
+else{enemy.x+=dx/dist*enemy.type.speed;enemy.y+=dy/dist*enemy.type.speed}
+} else {
+// 到达终点
+game.lives--;updateUI();game.enemies.splice(i,1);
+if(game.lives<=0)gameOver(false)
+}
+// 减速效果
+if(enemy.slowTimer>0){enemy.slowTimer--;enemy.currentSpeed=enemy.type.speed*0.5}
+else enemy.currentSpeed=enemy.type.speed
+});
+// 防御塔攻击
+game.towers.forEach(tower=>{
+if(tower.cooldown>0)tower.cooldown--;
+else{
+const target=game.enemies.find(e=>{
+const dx=e.x-tower.x,dy=e.y-tower.y;
+return Math.sqrt(dx*dx+dy*dy)<towerTypes[tower.type].range
+});
+if(target){
+const type=towerTypes[tower.type];
+// 创建子弹
+game.projectiles.push({x:tower.x,y:tower.y,target:target,damage:type.damage,color:type.color,type:tower.type});
+tower.cooldown=type.fireRate
+}
+}
+});
+// 更新子弹
+game.projectiles.forEach((p,i)=>{
+if(!p.target||game.enemies.indexOf(p.target)===-1){game.projectiles.splice(i,1);return}
+const dx=p.target.x-p.x,dy=p.target.y-p.y;
+const dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<10){
+// 命中
+p.target.hp-=p.damage;
+if(towerTypes[p.type].slow)p.target.slowTimer=60;
+if(p.target.hp<=0){
+game.beans+=p.target.type.reward;game.kills++;
+showTip(p.target.type.tip);
+const idx=game.enemies.indexOf(p.target);
+if(idx>-1)game.enemies.splice(idx,1)
+}
+game.projectiles.splice(i,1);updateUI()
+} else {
+p.x+=dx/dist*8;p.y+=dy/dist*8
+}
+});
+// 更新英雄移动
+if(game.hero&&game.hero.moving){
+const dx=game.hero.targetX-game.hero.x;
+const dy=game.hero.targetY-game.hero.y;
+const dist=Math.sqrt(dx*dx+dy*dy);
+if(dist<5){game.hero.moving=false;game.hero.x=game.hero.targetX;game.hero.y=game.hero.targetY}
+else{game.hero.x+=dx/dist*3;game.hero.y+=dy/dist*3}
+}
+// 生成敌人
+if(game.enemies.length===0&&game.wave<=10){
+setTimeout(()=>startWave(),1000)
+}
+draw();requestAnimationFrame(update)
+}
+
+// 开始波次
+function startWave(){
+if(game.wave>10){gameOver(true);return}
+const enemyType=enemyTypes[Math.min(Math.floor((game.wave-1)/2.5),enemyTypes.length-1)];
+const count=3+game.wave*2;
+document.getElementById('waveNum').textContent=game.wave;
+document.getElementById('waveEnemy').textContent=enemyType.emoji;
+document.getElementById('waveText').textContent=enemyType.name+'来袭！';
+document.getElementById('waveAlert').style.display='block';
+setTimeout(()=>document.getElementById('waveAlert').style.display='none',2000);
+// 生成敌人
+for(let i=0;i<count;i++){
+setTimeout(()=>{
+game.enemies.push({x:0,y:250,hp:enemyType.hp*(1+game.wave*0.1),maxHp:enemyType.hp*(1+game.wave*0.1),type:enemyType,pathIndex:0,slowTimer:0,currentSpeed:enemyType.speed})
+},i*800)
+}
+document.getElementById('enemiesLeft').textContent=count;updateUI()
+}
+
+// 选择防御塔
+function selectTower(type){
+game.selectedTower=type;
+document.querySelectorAll('.tower-btn').forEach(btn=>btn.classList.remove('selected'));
+document.getElementById('btn-'+type).classList.add('selected')
+}
+
+// 放置防御塔
+canvas.addEventListener('click',e=>{
+const rect=canvas.getBoundingClientRect();
+const x=(e.clientX-rect.left)*(canvas.width/rect.width);
+const y=(e.clientY-rect.top)*(canvas.height/rect.height);
+const type=game.selectedTower;
+const cost=towerTypes[type].cost;
+// 检查是否在路径上
+let onPath=false;
+for(let i=0;i<path.length-1;i++){
+const p1=path[i],p2=path[i+1];
+const dist=pointToLineDistance(x,y,p1.x,p1.y,p2.x,p2.y);
+if(dist<25){onPath=true;break}
+}
+if(onPath){alert('不能在路径上放置！');return}
+// 检查是否已有塔
+const existing=game.towers.find(t=>Math.abs(t.x-x)<30&&Math.abs(t.y-y)<30);
+if(existing){alert('这里已有防御塔！');return}
+// 检查金币
+if(game.beans<cost){alert('咖啡豆不足！');return}
+// 放置
+game.beans-=cost;game.towers.push({x,y,type,cooldown:0});updateUI()
+});
+
+function pointToLineDistance(px,py,x1,y1,x2,y2){
+const A=px-x1;const B=py-y1;const C=x2-x1;const D=y2-y1;
+const dot=A*C+B*D;const lenSq=C*C+D*D;let param=-1;
+if(lenSq!==0)param=dot/lenSq;let xx,yy;
+if(param<0){xx=x1;yy=y1}
+else if(param>1){xx=x2;yy=y2}
+else{xx=x1+param*C;yy=y1+param*D}
+const dx=px-xx;const dy=py-yy;return Math.sqrt(dx*dx+dy*dy)
+}
+
+// 英雄移动点击（桌面右键）
+canvas.addEventListener('contextmenu',e=>{
+e.preventDefault();
+const rect=canvas.getBoundingClientRect();
+const x=(e.clientX-rect.left)*(canvas.width/rect.width);
+const y=(e.clientY-rect.top)*(canvas.height/rect.height);
+if(game.hero){
+game.hero.targetX=x;game.hero.targetY=y;game.hero.moving=true
+}
+});
+
+// 触摸控制（移动端）
+let touchStartX=0,touchStartY=0,touchStartTime=0;
+canvas.addEventListener('touchstart',e=>{
+e.preventDefault();
+const touch=e.touches[0];
+const rect=canvas.getBoundingClientRect();
+touchStartX=(touch.clientX-rect.left)*(canvas.width/rect.width);
+touchStartY=(touch.clientY-rect.top)*(canvas.height/rect.height);
+touchStartTime=Date.now();
+},{passive:false});
+
+canvas.addEventListener('touchend',e=>{
+e.preventDefault();
+const touch=e.changedTouches[0];
+const rect=canvas.getBoundingClientRect();
+const x=(touch.clientX-rect.left)*(canvas.width/rect.width);
+const y=(touch.clientY-rect.top)*(canvas.height/rect.height);
+const duration=Date.now()-touchStartTime;
+const distance=Math.sqrt((x-touchStartX)**2+(y-touchStartY)**2);
+
+if(duration<300&&distance<10){
+// 短按 - 放置防御塔或移动英雄
+const now=Date.now();
+if(game.lastTouchTime&&now-game.lastTouchTime<300){
+// 双击 - 移动英雄
+if(game.hero){
+game.hero.targetX=x;game.hero.targetY=y;game.hero.moving=true;
+showToast('英雄移动中！');
+}
+game.lastTouchTime=0;
+} else {
+// 单击 - 放置防御塔
+const type=game.selectedTower;
+const cost=towerTypes[type].cost;
+let onPath=false;
+for(let i=0;i<path.length-1;i++){
+const p1=path[i],p2=path[i+1];
+const dist=pointToLineDistance(x,y,p1.x,p1.y,p2.x,p2.y);
+if(dist<25){onPath=true;break}
+}
+if(!onPath){
+const existing=game.towers.find(t=>Math.abs(t.x-x)<30&&Math.abs(t.y-y)<30);
+if(!existing&&game.beans>=cost){
+game.beans-=cost;game.towers.push({x,y,type,cooldown:0});updateUI();
+showToast('放置成功！');
+} else if(existing){
+showToast('这里已有防御塔！');
+} else if(game.beans<cost){
+showToast('咖啡豆不足！');
+}
+}
+game.lastTouchTime=now;
+}
+}
+},{passive:false});
+
+// 双指缩放支持
+let lastPinchDist=0;
+canvas.addEventListener('touchmove',e=>{
+if(e.touches.length===2){
+e.preventDefault();
+const dist=Math.sqrt((e.touches[0].clientX-e.touches[1].clientX)**2+(e.touches[0].clientY-e.touches[1].clientY)**2);
+if(lastPinchDist>0){
+// 可以在这里添加缩放逻辑
+}
+lastPinchDist=dist;
+}
+},{passive:false});
+
+// 英雄技能
+function useHeroSkill(hero){
+if(game.heroSkillCooldown){alert('技能冷却中！');return}
+if(hero==='pineapple'){
+// 菠萝虾：以英雄位置为中心的范围攻击
+const range=150;
+let killed=0;
+for(let i=game.enemies.length-1;i>=0;i--){
+const enemy=game.enemies[i];
+const dx=enemy.x-game.hero.x;
+const dy=enemy.y-game.hero.y;
+if(Math.sqrt(dx*dx+dy*dy)<range){
+game.beans+=enemy.type.reward;game.kills++;
+game.enemies.splice(i,1);killed++
+}
+}
+showTip(`🍍 菠萝虾释放「代码炮弹」，清除了${killed}个敌人！`);
+game.heroSkillCooldown=true;
+document.getElementById('hero-pineapple').classList.add('cooldown');
+setTimeout(()=>{
+game.heroSkillCooldown=false;
+document.getElementById('hero-pineapple').classList.remove('cooldown')
+},30000)
+}
+updateUI()
+}
+
+// 显示科普
+function showTip(text){
+if(Math.random()>0.3)return; // 30%概率显示
+document.getElementById('tipContent').textContent=text;
+document.getElementById('tipCard').classList.add('active');
+game.active=false
+}
+function closeTip(){
+document.getElementById('tipCard').classList.remove('active');
+game.active=true;update()
+}
+
+// Toast提示
+function showToast(msg){
+const t=document.getElementById('toast');
+t.textContent=msg;
+t.classList.add('show');
+setTimeout(()=>t.classList.remove('show'),2000)
+}
+
+// 更新UI
+function updateUI(){
+document.getElementById('coffeeBeans').textContent=game.beans;
+document.getElementById('lives').textContent=game.lives;
+document.getElementById('wave').textContent=game.wave+'/10';
+document.getElementById('enemiesLeft').textContent=game.enemies.length
+}
+
+// 游戏结束
+function gameOver(win){
+game.active=false;
+document.getElementById('gameOverTitle').textContent=win?'🎉 胜利！':'💔 失败';
+document.getElementById('finalWave').textContent=game.wave;
+document.getElementById('finalKills').textContent=game.kills;
+document.getElementById('finalBeans').textContent=game.beans;
+document.getElementById('gameOver').classList.add('active')
+}
+
+// 开始游戏
+function startGame(){
+document.getElementById('homePage').classList.remove('active');
+document.getElementById('gamePage').classList.add('active');
+game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false}};
+updateUI();startWave();update()
+}
+
+// 重新开始
+function restartGame(){
+document.getElementById('gameOver').classList.remove('active');
+startGame()
+}
+
+// 返回首页
+function goHome(){
+game.active=false;
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById('homePage').classList.add('active');
+document.getElementById('gameOver').classList.remove('active')
+}
+
+// 显示英雄
+function showHeroes(){
+alert('英雄系统：\n\n🍍 菠萝虾（已解锁）\n技能：代码炮弹 - 清掉半屏敌人\n冷却：30秒\n\n🎨 梵高虾（开发中）\n📢 皮皮虾（开发中）')
+}
+
+// 显示升级
+function showUpgrades(){
+alert('升级系统开发中...\n\n可升级项目：\n- 浓缩咖啡攻击力\n- 拿铁塔减速效果\n- 冷萃塔范围\n- 解锁新防御塔')
+}
+</script>
+</body>
+</html>

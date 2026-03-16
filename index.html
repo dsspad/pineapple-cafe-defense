@@ -239,7 +239,17 @@ ctx.fillStyle='#8b4513';ctx.beginPath();ctx.arc(800,250,30,0,Math.PI*2);ctx.fill
 ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText('🏠',785,258);
 // 绘制防御塔（上面图标+下面咖啡）
 game.towers.forEach(tower=>{
+// 特殊处理屎堆
+if(tower.type==='poop'){
+ctx.font='35px Arial';
+ctx.fillText('💩',tower.x-17,tower.y+10);
+// 绘制影响范围
+ctx.strokeStyle='rgba(139,69,19,0.3)';ctx.lineWidth=1;
+ctx.beginPath();ctx.arc(tower.x,tower.y,40,0,Math.PI*2);ctx.stroke();
+return;
+}
 const type=towerTypes[tower.type];
+if(!type)return; // 跳过无效类型
 // 绘制底座
 ctx.fillStyle=type.color;
 ctx.beginPath();ctx.arc(tower.x,tower.y,22,0,Math.PI*2);ctx.fill();
@@ -280,6 +290,17 @@ if(game.hero){
 ctx.strokeStyle='rgba(255,107,107,0.3)';ctx.lineWidth=2;
 ctx.beginPath();ctx.arc(game.hero.x,game.hero.y,game.hero.attackRange,0,Math.PI*2);ctx.stroke();
 ctx.fillStyle='rgba(255,107,107,0.1)';ctx.fill();
+// 绘制眩晕效果
+if(game.hero.stunTimer>0){
+ctx.fillStyle='rgba(255,255,0,0.3)';
+ctx.beginPath();ctx.arc(game.hero.x,game.hero.y,40,0,Math.PI*2);ctx.fill();
+ctx.font='16px Arial';ctx.fillText('💫',game.hero.x+20,game.hero.y-20);
+}
+// 绘制减速效果
+if(game.hero.slowTimer>0){
+ctx.fillStyle='rgba(100,149,237,0.3)';
+ctx.beginPath();ctx.arc(game.hero.x,game.hero.y,38,0,Math.PI*2);ctx.fill();
+}
 // 绘制菠萝虾（上面菠萝🍍+下面虾🦐）
 ctx.font='25px Arial';ctx.fillText('🍍',game.hero.x-12,game.hero.y-5);
 ctx.font='20px Arial';ctx.fillText('🦐',game.hero.x-10,game.hero.y+15);
@@ -308,9 +329,18 @@ return; // 被硬直，不移动
 }
 // 处理狗屎加速效果
 let moveSpeed=enemy.type.speed;
-if(enemy.type.special==='speedUp'&&enemy.speedUpTimer>0){
-moveSpeed*=enemy.type.speedUpRate;enemy.speedUpTimer--
+if(enemy.speedUpTimer>0){
+moveSpeed*=2;enemy.speedUpTimer--
 }
+// 检查是否经过狗屎（残留效果）
+game.towers.forEach(tower=>{
+if(tower.type==='poop'||tower.hp<=0){
+const tdx=tower.x-enemy.x;const tdy=tower.y-enemy.y;
+if(Math.sqrt(tdx*tdx+tdy*tdy)<40){
+moveSpeed*=1.5 // 经过狗屎加速50%
+}
+}
+});
 // 沿路径移动
 const target=path[enemy.pathIndex+1];
 if(target){
@@ -331,8 +361,16 @@ if(game.hero&&enemy.attackCooldown<=0){
 const hdx=game.hero.x-enemy.x;const hdy=game.hero.y-enemy.y;
 const hdist=Math.sqrt(hdx*hdx+hdy*hdy);
 if(hdist<40){ // 敌人靠近英雄时攻击
+// 飞行烟头：减速+眩晕+缓慢掉血
+if(enemy.type.special==='flying'){
+game.hero.slowTimer=120; // 减速2秒
+game.hero.stunTimer=60; // 眩晕1秒
+game.hero.hp-=3; // 缓慢掉血
+showToast('🚬 被烟头熏到！减速眩晕！');
+} else {
 const damage=5;
 game.hero.hp-=damage;
+}
 enemy.attackCooldown=60; // 1秒攻击间隔
 if(game.hero.hp<=0){
 game.hero.hp=0;
@@ -343,6 +381,36 @@ updateUI()
 }
 } else if(game.hero){
 enemy.attackCooldown--
+}
+// 婴儿大范围攻击（每秒掉5血）
+if(enemy.type.special==='stun'&&game.wave>0){
+if(enemy.aoeTimer===undefined)enemy.aoeTimer=0;
+enemy.aoeTimer++;
+if(enemy.aoeTimer>=60){ // 每秒触发
+enemy.aoeTimer=0;
+// 对范围内英雄和防御塔造成伤害
+const range=150;
+// 伤害英雄
+if(game.hero){
+const hdx=game.hero.x-enemy.x;const hdy=game.hero.y-enemy.y;
+if(Math.sqrt(hdx*hdx+hdy*hdy)<range){
+game.hero.hp-=5;
+if(game.hero.hp<=0){game.hero.hp=0;setTimeout(()=>gameOver(false),1000)}
+}
+}
+// 伤害防御塔
+game.towers.forEach(tower=>{
+const tdx=tower.x-enemy.x;const tdy=tower.y-enemy.y;
+if(Math.sqrt(tdx*tdx+tdy*tdy)<range&&tower.hp>0){
+tower.hp-=5;
+if(tower.hp<=0){
+const idx=game.towers.indexOf(tower);
+if(idx>-1)game.towers.splice(idx,1)
+}
+}
+});
+updateUI()
+}
 }
 // 敌人攻击防御塔
 if(enemy.towerAttackCooldown===undefined)enemy.towerAttackCooldown=0;
@@ -442,11 +510,19 @@ const tdx=tower.x-p.target.x,tdy=tower.y-p.target.y;
 if(Math.sqrt(tdx*tdx+tdy*tdy)<100)tower.stunTimer=p.target.type.stunDuration
 })
 }
-// 狗屎死亡时加速其他敌人
+// 狗屎死亡时留下持续存在的屎堆（作为防御塔）
 if(p.target.type.special==='speedUp'){
-game.enemies.forEach(e=>{
-if(e!==p.target)e.speedUpTimer=120
-})
+// 在死亡位置创建一个特殊的"屎堆"塔
+game.towers.push({
+x: p.target.x,
+y: p.target.y,
+type: 'poop',
+hp: 9999,
+maxHp: 9999,
+cooldown: 0,
+stunTimer: 0
+});
+showToast('💩 狗屎堆出现！敌人经过会加速！');
 }
 game.beans+=p.target.type.reward;game.kills++;
 // 不再显示咖啡小知识
@@ -460,13 +536,23 @@ p.x+=dx/dist*8;p.y+=dy/dist*8
 });
 // 更新英雄移动
 if(game.hero){
+// 处理眩晕
+if(game.hero.stunTimer>0){
+game.hero.stunTimer--;
+// 眩晕时不处理移动
+}
+// 处理减速
+let moveSpeed=3;
+if(game.hero.slowTimer>0){
+game.hero.slowTimer--;
+moveSpeed=1.5; // 减速50%
+}
 // 键盘/方向键移动
-if(game.hero.moveDir){
-const speed=3;
-if(game.hero.moveDir.up&&game.hero.y>50)game.hero.y-=speed;
-if(game.hero.moveDir.down&&game.hero.y<450)game.hero.y+=speed;
-if(game.hero.moveDir.left&&game.hero.x>50)game.hero.x-=speed;
-if(game.hero.moveDir.right&&game.hero.x<750)game.hero.x+=speed;
+if(game.hero.moveDir&&!game.hero.stunTimer){
+if(game.hero.moveDir.up&&game.hero.y>50)game.hero.y-=moveSpeed;
+if(game.hero.moveDir.down&&game.hero.y<450)game.hero.y+=moveSpeed;
+if(game.hero.moveDir.left&&game.hero.x>50)game.hero.x-=moveSpeed;
+if(game.hero.moveDir.right&&game.hero.x<750)game.hero.x+=moveSpeed;
 }
 // 目标移动
 if(game.hero.moving){
@@ -709,7 +795,7 @@ document.getElementById('gameOver').classList.add('active')
 function startGame(){
 document.getElementById('homePage').classList.remove('active');
 document.getElementById('gamePage').classList.add('active');
-game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false},hp:100,maxHp:100}};
+game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false},hp:100,maxHp:100,slowTimer:0,stunTimer:0}};
 setupDPad();updateUI();startWave();update()
 }
 

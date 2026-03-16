@@ -210,9 +210,9 @@ let game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selected
 
 // 防御塔配置（上面图标+下面咖啡）
 const towerTypes={
-espresso:{name:'浓缩咖啡',topIcon:'⚡',bottomIcon:'☕',cost:50,damage:20,range:100,fireRate:30,color:'#8B4513'},
-latte:{name:'拿铁塔',topIcon:'🥛',bottomIcon:'☕',cost:100,damage:15,range:120,fireRate:20,color:'#D4AF37',slow:true},
-coldbrew:{name:'冷萃塔',topIcon:'🧊',bottomIcon:'☕',cost:150,damage:40,range:150,fireRate:40,color:'#4682B4',aoe:true}
+espresso:{name:'浓缩咖啡',topIcon:'⚡',bottomIcon:'☕',cost:50,damage:25,range:90,fireRate:25,color:'#8B4513',desc:'高攻速单体攻击'},
+latte:{name:'拿铁塔',topIcon:'🥛',bottomIcon:'☕',cost:100,damage:10,range:130,fireRate:15,color:'#D4AF37',special:'slow',desc:'减速敌人50%'},
+coldbrew:{name:'冷萃塔',topIcon:'🧊',bottomIcon:'☕',cost:150,damage:35,range:110,fireRate:35,color:'#4682B4',special:'splash',desc:'范围溅射伤害'}
 };
 
 // 敌人类型
@@ -253,6 +253,13 @@ ctx.font='14px Arial';ctx.fillText(type.bottomIcon,tower.x-7,tower.y+12);
 if(game.selectedTower===tower.type){
 ctx.strokeStyle='rgba(212,175,55,0.3)';ctx.lineWidth=2;
 ctx.beginPath();ctx.arc(tower.x,tower.y,type.range,0,Math.PI*2);ctx.stroke()
+}
+// 绘制防御塔血条
+if(tower.hp<tower.maxHp){
+const hpPercent=tower.hp/tower.maxHp;
+ctx.fillStyle='#333';ctx.fillRect(tower.x-20,tower.y-32,40,5);
+ctx.fillStyle=hpPercent>0.5?'#32cd32':'#e94560';
+ctx.fillRect(tower.x-20,tower.y-32,40*hpPercent,5)
 }
 });
 // 绘制敌人
@@ -337,22 +344,82 @@ updateUI()
 } else if(game.hero){
 enemy.attackCooldown--
 }
+// 敌人攻击防御塔
+if(enemy.towerAttackCooldown===undefined)enemy.towerAttackCooldown=0;
+if(enemy.towerAttackCooldown<=0){
+const nearestTower=game.towers.find(t=>{
+const tdx=t.x-enemy.x;const tdy=t.y-enemy.y;
+return Math.sqrt(tdx*tdx+tdy*tdy)<50&&t.hp>0
+});
+if(nearestTower){
+nearestTower.hp-=10; // 对防御塔造成10点伤害
+enemy.towerAttackCooldown=90; // 1.5秒攻击间隔
+if(nearestTower.hp<=0){
+showToast(`${towerTypes[nearestTower.type].name}被摧毁！`);
+const idx=game.towers.indexOf(nearestTower);
+if(idx>-1)game.towers.splice(idx,1)
+}
+updateUI()
+}
+} else {
+enemy.towerAttackCooldown--
+}
 });
 // 防御塔攻击
 game.towers.forEach(tower=>{
+// 检查防御塔是否被摧毁
+if(tower.hp<=0)return;
 // 检查是否被婴儿硬直
 if(tower.stunTimer>0){tower.stunTimer--;return}
 if(tower.cooldown>0)tower.cooldown--;
 else{
+const type=towerTypes[tower.type];
+// 浓缩咖啡：单体高攻速
+if(tower.type==='espresso'){
 const target=game.enemies.find(e=>{
 const dx=e.x-tower.x,dy=e.y-tower.y;
-return Math.sqrt(dx*dx+dy*dy)<towerTypes[tower.type].range
+return Math.sqrt(dx*dx+dy*dy)<type.range
 });
 if(target){
-const type=towerTypes[tower.type];
-// 创建子弹
 game.projectiles.push({x:tower.x,y:tower.y,target:target,damage:type.damage,color:type.color,type:tower.type});
 tower.cooldown=type.fireRate
+}
+}
+// 拿铁塔：减速效果
+else if(tower.type==='latte'){
+const target=game.enemies.find(e=>{
+const dx=e.x-tower.x,dy=e.y-tower.y;
+return Math.sqrt(dx*dx+dy*dy)<type.range
+});
+if(target){
+game.projectiles.push({x:tower.x,y:tower.y,target:target,damage:type.damage,color:type.color,type:tower.type,slow:true});
+tower.cooldown=type.fireRate
+}
+}
+// 冷萃塔：范围溅射
+else if(tower.type==='coldbrew'){
+const target=game.enemies.find(e=>{
+const dx=e.x-tower.x,dy=e.y-tower.y;
+return Math.sqrt(dx*dx+dy*dy)<type.range
+});
+if(target){
+// 对目标及其周围敌人造成伤害
+game.enemies.forEach(e=>{
+const edx=e.x-target.x,edy=e.y-target.y;
+if(Math.sqrt(edx*edx+edy*edy)<60){
+e.hp-=type.damage;
+if(e.hp<=0){
+game.beans+=e.type.reward;game.kills++;
+const idx=game.enemies.indexOf(e);
+if(idx>-1)game.enemies.splice(idx,1)
+}
+}
+});
+// 绘制溅射效果
+ctx.fillStyle='rgba(70,130,180,0.3)';
+ctx.beginPath();ctx.arc(target.x,target.y,60,0,Math.PI*2);ctx.fill();
+tower.cooldown=type.fireRate
+}
 }
 }
 });
@@ -364,8 +431,8 @@ const dist=Math.sqrt(dx*dx+dy*dy);
 if(dist<10){
 // 命中
 p.target.hp-=p.damage;
-// 检查是否是防御塔子弹且有减速效果
-if(p.type!=='hero'&&towerTypes[p.type]&&towerTypes[p.type].slow)p.target.slowTimer=60;
+// 拿铁塔减速效果
+if(p.slow)p.target.slowTimer=90;
 // 处理敌人特殊效果
 if(p.target.hp<=0){
 // 婴儿死亡时硬直周围防御塔
@@ -472,14 +539,14 @@ const p1=path[i],p2=path[i+1];
 const dist=pointToLineDistance(x,y,p1.x,p1.y,p2.x,p2.y);
 if(dist<25){onPath=true;break}
 }
-if(onPath){alert('不能在路径上放置！');return}
+if(onPath){showToast('不能在路径上放置！');return}
 // 检查是否已有塔
 const existing=game.towers.find(t=>Math.abs(t.x-x)<30&&Math.abs(t.y-y)<30);
-if(existing){alert('这里已有防御塔！');return}
+if(existing){showToast('这里已有防御塔！');return}
 // 检查金币
-if(game.beans<cost){alert('咖啡豆不足！');return}
-// 放置
-game.beans-=cost;game.towers.push({x,y,type,cooldown:0});updateUI()
+if(game.beans<cost){showToast('咖啡豆不足！');return}
+// 放置（添加血量属性）
+game.beans-=cost;game.towers.push({x,y,type,cooldown:0,hp:100,maxHp:100});updateUI()
 });
 
 function pointToLineDistance(px,py,x1,y1,x2,y2){
@@ -643,8 +710,6 @@ function startGame(){
 document.getElementById('homePage').classList.remove('active');
 document.getElementById('gamePage').classList.add('active');
 game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false},hp:100,maxHp:100}};
-// 初始化防御塔硬直计时器
-game.towers.forEach(tower=>tower.stunTimer=0);
 setupDPad();updateUI();startWave();update()
 }
 

@@ -217,10 +217,9 @@ coldbrew:{name:'冷萃塔',icon:'🧊',cost:150,damage:40,range:150,fireRate:40,
 
 // 敌人类型
 const enemyTypes=[
-{emoji:'😴',name:'困意小怪',hp:30,speed:1,reward:10,tip:'咖啡因可以驱散困意，一杯浓缩咖啡让你精神焕发！'},
-{emoji:'🐛',name:'苦味虫子',hp:50,speed:1.2,reward:15,tip:'咖啡的苦味来自绿原酸，适度烘焙能平衡酸甜苦。'},
-{emoji:'🦥',name:'拖延症懒虫',hp:80,speed:0.8,reward:20,tip:'手冲咖啡需要耐心等待，但每一滴都值得！'},
-{emoji:'☁️',name:'社恐乌云',hp:100,speed:1.5,reward:25,tip:'咖啡馆是社交的好场所，一杯咖啡打破尴尬。'}
+{emoji:'👶',name:'婴儿',hp:40,speed:0.8,reward:15,tip:'婴儿的哭声需要耐心安抚，就像等待咖啡萃取一样。',special:'stun',stunDuration:60},
+{emoji:'💩',name:'狗屎',hp:60,speed:0.5,reward:20,tip:'不及时清理会越来越麻烦，就像咖啡渍要及时擦拭。',special:'speedUp',speedUpRate:1.5},
+{emoji:'🚬',name:'飞行烟头',hp:35,speed:1.8,reward:12,tip:'二手烟有害健康，咖啡馆禁止吸烟哦！',special:'flying'}
 ];
 
 // 路径点
@@ -286,24 +285,35 @@ function update(){
 if(!game.active)return;
 // 更新敌人
 game.enemies.forEach((enemy,i)=>{
+// 处理婴儿硬直效果
+if(enemy.stunTimer>0){
+enemy.stunTimer--;
+return; // 被硬直，不移动
+}
+// 处理狗屎加速效果
+let moveSpeed=enemy.type.speed;
+if(enemy.type.special==='speedUp'&&enemy.speedUpTimer>0){
+moveSpeed*=enemy.type.speedUpRate;enemy.speedUpTimer--
+}
 // 沿路径移动
 const target=path[enemy.pathIndex+1];
 if(target){
 const dx=target.x-enemy.x;const dy=target.y-enemy.y;
 const dist=Math.sqrt(dx*dx+dy*dy);
 if(dist<5)enemy.pathIndex++;
-else{enemy.x+=dx/dist*enemy.type.speed;enemy.y+=dy/dist*enemy.type.speed}
+else{enemy.x+=dx/dist*moveSpeed;enemy.y+=dy/dist*moveSpeed}
 } else {
 // 到达终点
 game.lives--;updateUI();game.enemies.splice(i,1);
 if(game.lives<=0)gameOver(false)
 }
 // 减速效果
-if(enemy.slowTimer>0){enemy.slowTimer--;enemy.currentSpeed=enemy.type.speed*0.5}
-else enemy.currentSpeed=enemy.type.speed
+if(enemy.slowTimer>0){enemy.slowTimer--;moveSpeed*=0.5}
 });
 // 防御塔攻击
 game.towers.forEach(tower=>{
+// 检查是否被婴儿硬直
+if(tower.stunTimer>0){tower.stunTimer--;return}
 if(tower.cooldown>0)tower.cooldown--;
 else{
 const target=game.enemies.find(e=>{
@@ -328,7 +338,21 @@ if(dist<10){
 p.target.hp-=p.damage;
 // 检查是否是防御塔子弹且有减速效果
 if(p.type!=='hero'&&towerTypes[p.type]&&towerTypes[p.type].slow)p.target.slowTimer=60;
+// 处理敌人特殊效果
 if(p.target.hp<=0){
+// 婴儿死亡时硬直周围防御塔
+if(p.target.type.special==='stun'){
+game.towers.forEach(tower=>{
+const tdx=tower.x-p.target.x,tdy=tower.y-p.target.y;
+if(Math.sqrt(tdx*tdx+tdy*tdy)<100)tower.stunTimer=p.target.type.stunDuration
+})
+}
+// 狗屎死亡时加速其他敌人
+if(p.target.type.special==='speedUp'){
+game.enemies.forEach(e=>{
+if(e!==p.target)e.speedUpTimer=120
+})
+}
 game.beans+=p.target.type.reward;game.kills++;
 showTip(p.target.type.tip);
 const idx=game.enemies.indexOf(p.target);
@@ -588,6 +612,8 @@ function startGame(){
 document.getElementById('homePage').classList.remove('active');
 document.getElementById('gamePage').classList.add('active');
 game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false}}};
+// 初始化防御塔硬直计时器
+game.towers.forEach(tower=>tower.stunTimer=0);
 setupDPad();updateUI();startWave();update()
 }
 

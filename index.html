@@ -129,7 +129,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="page" id="gamePage">
 <div class="game-header">
 <div class="stat-item"><span class="stat-icon">☕</span>咖啡豆: <span class="stat-value" id="coffeeBeans">100</span></div>
-<div class="stat-item"><span class="stat-icon">❤️</span>生命值: <span class="stat-value" id="lives">20</span></div>
+<div class="stat-item"><span class="stat-icon">❤️</span>基地: <span class="stat-value" id="lives">20</span></div>
+<div class="stat-item"><span class="stat-icon">🍍</span>英雄: <span class="stat-value" id="heroHp">100</span></div>
 <div class="stat-item"><span class="stat-icon">🌊</span>波次: <span class="stat-value" id="wave">1</span>/10</div>
 <div class="stat-item"><span class="stat-icon">👹</span>敌人: <span class="stat-value" id="enemiesLeft">0</span></div>
 </div>
@@ -205,7 +206,7 @@ const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 
 // 游戏状态
-let game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0}};
+let game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,hp:100,maxHp:100}};
 
 // 防御塔配置（上面图标+下面咖啡）
 const towerTypes={
@@ -276,8 +277,10 @@ ctx.fillStyle='rgba(255,107,107,0.1)';ctx.fill();
 ctx.font='25px Arial';ctx.fillText('🍍',game.hero.x-12,game.hero.y-5);
 ctx.font='20px Arial';ctx.fillText('🦐',game.hero.x-10,game.hero.y+15);
 // 英雄血条
-ctx.fillStyle='#333';ctx.fillRect(game.hero.x-25,game.hero.y-35,50,6);
-ctx.fillStyle='#32cd32';ctx.fillRect(game.hero.x-25,game.hero.y-35,50,6);
+const hpPercent=game.hero.hp/game.hero.maxHp;
+ctx.fillStyle='#333';ctx.fillRect(game.hero.x-25,game.hero.y-40,50,8);
+ctx.fillStyle=hpPercent>0.5?'#32cd32':hpPercent>0.25?'#f4a460':'#e94560';
+ctx.fillRect(game.hero.x-25,game.hero.y-40,50*hpPercent,8);
 // 移动状态指示
 if(game.hero.moving){
 ctx.strokeStyle='rgba(212,175,55,0.5)';ctx.lineWidth=2;
@@ -315,6 +318,25 @@ if(game.lives<=0)gameOver(false)
 }
 // 减速效果
 if(enemy.slowTimer>0){enemy.slowTimer--;moveSpeed*=0.5}
+// 敌人攻击英雄
+if(game.hero&&enemy.attackCooldown===undefined)enemy.attackCooldown=0;
+if(game.hero&&enemy.attackCooldown<=0){
+const hdx=game.hero.x-enemy.x;const hdy=game.hero.y-enemy.y;
+const hdist=Math.sqrt(hdx*hdx+hdy*hdy);
+if(hdist<40){ // 敌人靠近英雄时攻击
+const damage=5;
+game.hero.hp-=damage;
+enemy.attackCooldown=60; // 1秒攻击间隔
+if(game.hero.hp<=0){
+game.hero.hp=0;
+showToast('英雄阵亡！游戏结束');
+setTimeout(()=>gameOver(false),1000)
+}
+updateUI()
+}
+} else if(game.hero){
+enemy.attackCooldown--
+}
 });
 // 防御塔攻击
 game.towers.forEach(tower=>{
@@ -602,7 +624,8 @@ function updateUI(){
 document.getElementById('coffeeBeans').textContent=game.beans;
 document.getElementById('lives').textContent=game.lives;
 document.getElementById('wave').textContent=game.wave+'/10';
-document.getElementById('enemiesLeft').textContent=game.enemies.length
+document.getElementById('enemiesLeft').textContent=game.enemies.length;
+if(game.hero)document.getElementById('heroHp').textContent=game.hero.hp
 }
 
 // 游戏结束
@@ -619,7 +642,7 @@ document.getElementById('gameOver').classList.add('active')
 function startGame(){
 document.getElementById('homePage').classList.remove('active');
 document.getElementById('gamePage').classList.add('active');
-game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false}}};
+game={beans:100,lives:20,wave:1,enemies:[],towers:[],projectiles:[],selectedTower:'espresso',kills:0,active:true,heroSkillCooldown:false,hero:{x:400,y:250,targetX:400,targetY:250,moving:false,attackRange:120,attackCooldown:0,moveDir:{up:false,down:false,left:false,right:false},hp:100,maxHp:100}};
 // 初始化防御塔硬直计时器
 game.towers.forEach(tower=>tower.stunTimer=0);
 setupDPad();updateUI();startWave();update()
